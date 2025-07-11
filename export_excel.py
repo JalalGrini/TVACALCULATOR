@@ -15,6 +15,14 @@ def export_to_excel(df, enterprise_name, date_str):
     ws = wb.active
     ws.title = "TVA Report"
 
+    # Set row height for all rows (e.g., 22 instead of 30)
+    for i in range(1, 100):  # Adjust 100 to max expected rows
+        ws.row_dimensions[i].height = 22
+
+    # Set column width for relevant columns (e.g., 18 instead of 30)
+    for col in range(2, 7):  # Columns B to G (your table columns)
+        ws.column_dimensions[chr(64 + col)].width = 18
+
     # Styles
     bold = Font(bold=True)
     center = Alignment(horizontal="center")
@@ -23,7 +31,7 @@ def export_to_excel(df, enterprise_name, date_str):
         top=Side(style="thin"), bottom=Side(style="thin")
     )
     grey_fill = PatternFill(start_color='C0C0C0',
-                             end_color='C0C0C0', fill_type='solid') 
+                            end_color='C0C0C0', fill_type='solid')
     green_fill = PatternFill(start_color="C6EFCE",
                              end_color="C6EFCE", fill_type="solid")
     red_fill = PatternFill(start_color="FFC7CE",
@@ -57,9 +65,15 @@ def export_to_excel(df, enterprise_name, date_str):
                 else:
                     cell.value = row[key]
                 cell.border = border
+                # Make text bold and moderately bigger
+                cell.font = Font(bold=True, size=12)
+                cell.alignment = Alignment(
+                    horizontal="center", vertical="center")
                 if key == "TVA":
                     tva_total += row[key]
-                if row['Service'].upper().startswith("FAC"):
+                if row['Service'] == "Crédit Précédent":
+                    cell.fill = red_fill
+                elif row['Service'].upper().startswith("FAC"):
                     cell.fill = yellow_fill
                 elif row['Service'].upper().startswith("FACTURE"):
                     cell.fill = red_fill
@@ -81,9 +95,16 @@ def export_to_excel(df, enterprise_name, date_str):
     clients = df[df['Role'] == 'Client'].to_dict(orient='records')
     fournisseurs = df[df['Role'] == 'Fournisseur'].to_dict(orient='records')
 
+    # Move "Crédit Précédent" entries to the end of fournisseurs
+    credit_precedent_entries = [
+        f for f in fournisseurs if f.get("Service") == "Crédit Précédent"]
+    other_fournisseurs = [f for f in fournisseurs if f.get(
+        "Service") != "Crédit Précédent"]
+    fournisseurs = other_fournisseurs + credit_precedent_entries
+
     # --- Write CLIENTS first at the top ---
     start_row_clients = 3
-    ca_title = f"C.A du {date_str}"
+    ca_title = f"C.A du {date_str}  {enterprise_name}"
     tva_client, end_row_clients = write_section(
         start_row_clients, ca_title, clients, is_client=True, first_col_header="Ventes")
 
@@ -97,7 +118,7 @@ def export_to_excel(df, enterprise_name, date_str):
 
     # --- Write FOURNISSEURS after clients ---
     start_row_fournisseurs = end_row_clients + 3
-    tva_title = f"TVA le {date_str} {enterprise_name}"
+    tva_title = f"TVA RECUPERABLE le {date_str} "
     tva_fournisseur, end_row_fournisseurs = write_section(
         start_row_fournisseurs, tva_title, fournisseurs, is_client=False, first_col_header="Achats")
 

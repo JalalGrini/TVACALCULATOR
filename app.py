@@ -20,17 +20,31 @@ if 'entries' not in st.session_state:
 with st.form("add_form"):
     col1, col2 = st.columns(2)
     with col1:
-        role = st.selectbox("Type", ["Client", "Fournisseur"])
-        service = st.text_input("Nom du service")
+        role = st.selectbox(
+            "Type", ["Client", "Fournisseur", "Crédit Précédent"])
+        service = st.text_input("Nom du service", value="")
     with col2:
         ttc = st.number_input("Montant TTC", min_value=0.0, step=0.01)
-        tva_rate = st.number_input("Taux de TVA %", min_value=0.0, max_value=100.0, value=20.0)
+        tva_rate = st.number_input(
+            "Taux de TVA %", min_value=0.0, max_value=100.0, value=20.0)
 
     submitted = st.form_submit_button("Ajouter à la liste")
-    if submitted and service and ttc > 0:
+    if submitted and ttc > 0:
+        # Force service name for Crédit Précédent
+        if role == "Crédit Précédent":
+            service = "Crédit Précédent"
+            role_to_save = "Fournisseur"
+        else:
+            role_to_save = role
+            if not service.strip():
+                next_id = len(st.session_state['entries']) + 1
+                if role == "Fournisseur":
+                    service = f"Facture {next_id}"
+                else:
+                    service = f"Service {next_id}"
         ht, tva = calculate_ht_tva(ttc, tva_rate)
         st.session_state['entries'].append({
-            "Role": role,
+            "Role": role_to_save,
             "Service": service,
             "TTC": ttc,
             "HT": ht,
@@ -38,10 +52,24 @@ with st.form("add_form"):
             "TVA": tva
         })
 
-# Display table
+# Display table with delete button in first column
 if st.session_state['entries']:
     df = pd.DataFrame(st.session_state['entries'])
-    st.dataframe(df, use_container_width=True)
+    cols = st.columns(len(df.columns) + 1)
+    # Header row
+    cols[0].write("")  # Empty header for delete button
+    for i, col_name in enumerate(df.columns):
+        cols[i + 1].write(f"**{col_name}**")
+    # Data rows
+    for idx, row in df.iterrows():
+        cols = st.columns(len(df.columns) + 1)
+        # Small delete button in first column
+        if cols[0].button("❌", key=f"del_{idx}"):
+            st.session_state['entries'].pop(idx)
+            st.rerun()
+        # Row data
+        for i, value in enumerate(row):
+            cols[i + 1].write(value)
 
     # ✅ Export to Excel using the new function with date
     if st.button("📤 Exporter vers Excel"):
